@@ -1,0 +1,111 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db" // literal para no depender de .env
+}
+
+enum Role {
+  ADMIN
+  THERAPIST
+  PATIENT
+}
+
+enum Modality {
+  ONLINE
+  IN_PERSON
+  HYBRID
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  UNSPECIFIED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(THERAPIST)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Therapist Therapist?
+}
+
+model Therapist {
+  id              String      @id @default(cuid())
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id])
+
+  fullName        String
+  licenseNumber   String
+  verified        Boolean     @default(false)
+  headline        String?
+  bio             String?
+  yearsExperience Int?
+  approaches      Approach[]  @relation("TherapistApproaches")
+  specialties     Specialty[] @relation("TherapistSpecialties")
+
+  modality        Modality
+  priceMin        Int?
+  priceMax        Int?
+  languages       String     @default("es")  // ✅ usa string (CSV si ocupas varios)
+  gender          Gender      @default(UNSPECIFIED)
+
+  availability    Availability[]
+
+  city            String?
+  state           String?
+  country         String?     @default("MX")
+  latitude        Float?
+  longitude       Float?
+  address         String?
+  postalCode      String?
+
+  whatsapp        String?
+  emailPublic     String?
+  website         String?
+  bookingLink     String?
+
+  avatarUrl       String?
+  introVideoUrl   String?
+
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([city])
+  @@index([state])
+  @@index([postalCode])
+}
+
+model Approach {
+  id    String  @id @default(cuid())
+  slug  String  @unique
+  label String
+  therapists Therapist[] @relation("TherapistApproaches")
+}
+
+model Specialty {
+  id    String  @id @default(cuid())
+  slug  String  @unique
+  label String
+  therapists Therapist[] @relation("TherapistSpecialties")
+}
+
+model Availability {
+  id           String    @id @default(cuid())
+  therapistId  String
+  therapist    Therapist @relation(fields: [therapistId], references: [id])
+
+  weekday      Int
+  startTime    String
+  endTime      String
+  timezone     String
+}
