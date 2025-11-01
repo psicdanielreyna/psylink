@@ -1,28 +1,61 @@
-"use client";
-import { useState } from "react";
+import TherapistCard, { TherapistSummary } from "@/components/TherapistCard";
+import { prisma } from "@/lib/prisma";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import Link from "next/link";
 
-export default function BuscarPage() {
-  const [q, setQ] = useState("");
+export const dynamic = "force-dynamic";
 
-  const onSearch = () => {
-    const url = new URL("/api/search", window.location.origin);
-    if (q) url.searchParams.set("q", q);
-    window.location.href = url.toString();
-  };
+async function getTherapists(q?: string, modality?: string) {
+  const where: any = { isActive: true };
+  if (q) {
+    where.OR = [
+      { fullName: { contains: q, mode: "insensitive" } },
+      { city: { contains: q, mode: "insensitive" } },
+      { specialties: { some: { label: { contains: q, mode: "insensitive" } } } },
+    ];
+  }
+  if (modality && modality !== "ALL") where.modality = modality;
+  const rows = await prisma.therapist.findMany({
+    where,
+    include: { specialties: { select: { label: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 24,
+  });
+  return rows as unknown as TherapistSummary[];
+}
+
+export default async function Buscar({ searchParams }: { searchParams: { q?: string; m?: string } }) {
+  const q = searchParams?.q ?? "";
+  const m = searchParams?.m ?? "ALL";
+  const therapists = await getTherapists(q, m);
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <h2 className="text-2xl font-medium">Buscar terapeuta</h2>
-      <div className="mt-4 flex gap-2">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Ansiedad, TCC, Monterrey..."
-          className="w-full border rounded px-3 py-2"
-        />
-        <button onClick={onSearch} className="border rounded px-4">Buscar</button>
+    <main className="max-w-6xl mx-auto px-4 py-10 space-y-6">
+      <div className="flex flex-col md:flex-row items-center gap-3">
+        <form className="flex-1 flex gap-2" action="/buscar">
+          <Input name="q" defaultValue={q} placeholder="Busca por nombre, ciudad o especialidad…" />
+          <Select name="m" defaultValue={m}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Modalidad" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Todas</SelectItem>
+              <SelectItem value="ONLINE">En línea</SelectItem>
+              <SelectItem value="IN_PERSON">Presencial</SelectItem>
+              <SelectItem value="HYBRID">Híbrida</SelectItem>
+            </SelectContent>
+          </Select>
+          <button className="rounded-md px-4 py-2 bg-primary text-primary-foreground font-medium">Buscar</button>
+        </form>
+        <Link href="/terapeuta/nuevo" className="text-sm underline">¿Eres terapeuta? Regístrate</Link>
       </div>
-      <p className="mt-3 text-sm text-gray-500">* MVP: luego mostramos tarjetas ordenadas por match_score.</p>
+
+      {therapists.length === 0 ? (
+        <p className="text-muted-foreground">No encontramos resultados. Prueba con “ansiedad”, “Monterrey” o “en línea”.</p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {therapists.map(t => <TherapistCard key={t.id} t={t} />)}
+        </div>
+      )}
     </main>
   );
 }
